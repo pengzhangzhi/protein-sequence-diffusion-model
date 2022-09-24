@@ -391,6 +391,22 @@ class Unet(nn.Module):
 # gaussian diffusion trainer class
 
 def extract(a, t, x_shape):
+    """ extract items by the index given by t, add dim to the out to match the num of dim of x_shape.
+
+    Args:
+        a (torch.Tensor): tensor to extract from
+        t (torch.Tensor): index tensor
+        x_shape (torch.Tensor): shape of the output tensor
+    output:
+        torch.Tensor: extracted tensor
+    Example:
+        >>> a = torch.arange(1000)
+        >>> t = torch.tensor([1, 2, 3])
+        >>> extract(a, t, torch.tensor([3, 5 , 7])).shape
+        torch.Size([3, 1, 1]) # where the first dim matchs and expands the dim to match the num of dim of x_shape
+        
+    """
+    assert t.shape[0] == x_shape[0], 'batch size of t and x_shape must match'
     b, *_ = t.shape
     out = a.gather(-1, t)
     return out.reshape(b, *((1,) * (len(x_shape) - 1)))
@@ -418,7 +434,7 @@ class GaussianDiffusion(nn.Module):
         self,
         model,
         *,
-        image_size,
+        sample_shape=(3,224,224),
         timesteps = 1000,
         sampling_timesteps = None,
         loss_type = 'l1',
@@ -429,14 +445,12 @@ class GaussianDiffusion(nn.Module):
         ddim_sampling_eta = 1.
     ):
         super().__init__()
-        assert not (type(self) == GaussianDiffusion and model.channels != model.out_dim)
-        assert not model.learned_sinusoidal_cond
+        # assert not (type(self) == GaussianDiffusion)
 
         self.model = model
-        self.channels = self.model.channels
         self.self_condition = self.model.self_condition
 
-        self.image_size = image_size
+        self.sample_shape = sample_shape
 
         self.objective = objective
 
@@ -520,8 +534,8 @@ class GaussianDiffusion(nn.Module):
         posterior_log_variance_clipped = extract(self.posterior_log_variance_clipped, t, x_t.shape)
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
-    def model_predictions(self, x, t, x_self_cond = None, clip_x_start = False):
-        model_output = self.model(x, t, x_self_cond)
+    def model_predictions(self, x, t, padding_mask, x_self_cond = None, clip_x_start = False):
+        model_output = self.model(x, t, x_self_cond,padding_mask=padding_mask)
         maybe_clip = partial(torch.clamp, min = -1., max = 1.) if clip_x_start else identity
 
         if self.objective == 'pred_noise':
@@ -536,8 +550,8 @@ class GaussianDiffusion(nn.Module):
 
         return ModelPrediction(pred_noise, x_start)
 
-    def p_mean_variance(self, x, t, x_self_cond = None, clip_denoised = True):
-        preds = self.model_predictions(x, t, x_self_cond)
+    def p_mean_variance(self, x, t, padding_mask, x_self_cond = None, clip_denoised = True):
+        preds = self.model_predictions(x, t, padding_mask=padding_mask, x_self_cond=x_self_cond,)
         x_start = preds.pred_x_start
 
         if clip_denoised:
@@ -549,15 +563,16 @@ class GaussianDiffusion(nn.Module):
     @torch.no_grad()
     def p_sample(self, x, t: int, x_self_cond = None, clip_denoised = True):
         b, *_, device = *x.shape, x.device
-        batched_times = torch.full((x.shape[0],), t, device = x.device, dtype = torch.long)
-        model_mean, _, model_log_variance, x_start = self.p_mean_variance(x = x, t = batched_times, x_self_cond = x_self_cond, clip_denoised = clip_denoised)
+        batched_times = torch.full((x.shape[0],), t, device = device, dtype = torch.long)
+        padding_mask = torch.zeros(*x.shape[:2],dtype=torch.bool).to(x.device)
+        model_mean, _, model_log_variance, x_start = self.p_mean_variance(x = x, t = batched_times, padding_mask=padding_mask, x_self_cond = x_self_cond, clip_denoised = clip_denoised)
         noise = torch.randn_like(x) if t > 0 else 0. # no noise if t == 0
         pred_img = model_mean + (0.5 * model_log_variance).exp() * noise
         return pred_img, x_start
 
     @torch.no_grad()
     def p_sample_loop(self, shape):
-        batch, device = shape[0], self.betas.device
+        device = self.betas.device
 
         img = torch.randn(shape, device=device)
 
@@ -567,7 +582,7 @@ class GaussianDiffusion(nn.Module):
             self_cond = x_start if self.self_condition else None
             img, x_start = self.p_sample(img, t, self_cond)
 
-        img = unnormalize_to_zero_to_one(img)
+        # img = unnormalize_to_zero_to_one(img)
         return img
 
     @torch.no_grad()
@@ -578,17 +593,17 @@ class GaussianDiffusion(nn.Module):
         times = list(reversed(times.int().tolist()))
         time_pairs = list(zip(times[:-1], times[1:])) # [(T-1, T-2), (T-2, T-3), ..., (1, 0), (0, -1)]
 
-        img = torch.randn(shape, device = device)
-
+        datapoint = torch.randn(shape, device = device)
+        padding_mask = torch.zeros(*datapoint.shape[:2],dtype=torch.bool).to(datapoint.device)
         x_start = None
 
         for time, time_next in tqdm(time_pairs, desc = 'sampling loop time step'):
             time_cond = torch.full((batch,), time, device=device, dtype=torch.long)
             self_cond = x_start if self.self_condition else None
-            pred_noise, x_start, *_ = self.model_predictions(img, time_cond, self_cond, clip_x_start = clip_denoised)
+            pred_noise, x_start, *_ = self.model_predictions(datapoint, time_cond, padding_mask=padding_mask, x_self_cond=self_cond, clip_x_start = clip_denoised)
 
             if time_next < 0:
-                img = x_start
+                datapoint = x_start
                 continue
 
             alpha = self.alphas_cumprod[time]
@@ -597,20 +612,19 @@ class GaussianDiffusion(nn.Module):
             sigma = eta * ((1 - alpha / alpha_next) * (1 - alpha_next) / (1 - alpha)).sqrt()
             c = (1 - alpha_next - sigma ** 2).sqrt()
 
-            noise = torch.randn_like(img)
+            noise = torch.randn_like(datapoint)
 
-            img = x_start * alpha_next.sqrt() + \
+            datapoint = x_start * alpha_next.sqrt() + \
                   c * pred_noise + \
                   sigma * noise
 
-        img = unnormalize_to_zero_to_one(img)
-        return img
+        # img = unnormalize_to_zero_to_one(img)
+        return datapoint
 
     @torch.no_grad()
     def sample(self, batch_size = 16):
-        image_size, channels = self.image_size, self.channels
         sample_fn = self.p_sample_loop if not self.is_ddim_sampling else self.ddim_sample
-        return sample_fn((batch_size, channels, image_size, image_size))
+        return sample_fn((batch_size, *self.sample_shape))
 
     @torch.no_grad()
     def interpolate(self, x1, x2, t = None, lam = 0.5):
@@ -630,7 +644,6 @@ class GaussianDiffusion(nn.Module):
 
     def q_sample(self, x_start, t, noise=None):
         noise = default(noise, lambda: torch.randn_like(x_start))
-
         return (
             extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start +
             extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
@@ -639,14 +652,15 @@ class GaussianDiffusion(nn.Module):
     @property
     def loss_fn(self):
         if self.loss_type == 'l1':
-            return F.l1_loss
+            return partial(F.l1_loss, reduction = 'none')
         elif self.loss_type == 'l2':
-            return F.mse_loss
+            return partial(F.mse_loss, reduction = 'none')
+        elif self.loss_type == 'cos':
+            return F.cosine_similarity
         else:
             raise ValueError(f'invalid loss type {self.loss_type}')
 
-    def p_losses(self, x_start, t, noise = None):
-        b, c, h, w = x_start.shape
+    def p_losses(self, x_start, t, padding_mask, noise = None):
         noise = default(noise, lambda: torch.randn_like(x_start))
 
         # noise sample
@@ -660,12 +674,12 @@ class GaussianDiffusion(nn.Module):
         x_self_cond = None
         if self.self_condition and random() < 0.5:
             with torch.no_grad():
-                x_self_cond = self.model_predictions(x, t).pred_x_start
+                x_self_cond = self.model_predictions(x, t,padding_mask=padding_mask).pred_x_start
                 x_self_cond.detach_()
 
         # predict and take gradient step
 
-        model_out = self.model(x, t, x_self_cond)
+        model_out = self.model(x, t, x_self_cond, padding_mask=padding_mask)
 
         if self.objective == 'pred_noise':
             target = noise
@@ -674,19 +688,21 @@ class GaussianDiffusion(nn.Module):
         else:
             raise ValueError(f'unknown objective {self.objective}')
 
-        loss = self.loss_fn(model_out, target, reduction = 'none')
+        loss = self.loss_fn(model_out, target)
         loss = reduce(loss, 'b ... -> b (...)', 'mean')
 
         loss = loss * extract(self.p2_loss_weight, t, loss.shape)
         return loss.mean()
 
-    def forward(self, img, *args, **kwargs):
-        b, c, h, w, device, img_size, = *img.shape, img.device, self.image_size
-        assert h == img_size and w == img_size, f'height and width of image must be {img_size}'
+    def forward(self, sample, padding_mask, *args, **kwargs):
+        device = sample.device
+        b = sample.shape[0]
+        # b, c, h, w, device, img_size, = *sample.shape, sample.device, self.sample_shape
+        # assert h == img_size and w == img_size, f'height and width of image must be {img_size}'
         t = torch.randint(0, self.num_timesteps, (b,), device=device).long()
 
-        img = normalize_to_neg_one_to_one(img)
-        return self.p_losses(img, t, *args, **kwargs)
+        # sample = normalize_to_neg_one_to_one(sample)
+        return self.p_losses(sample, t, padding_mask=padding_mask, *args, **kwargs)
 
 # dataset classes
 

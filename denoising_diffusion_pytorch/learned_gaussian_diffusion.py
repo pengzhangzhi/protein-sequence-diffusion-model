@@ -5,7 +5,7 @@ from inspect import isfunction
 from torch import nn, einsum
 from einops import rearrange
 
-from denoising_diffusion_pytorch.denoising_diffusion_pytorch import GaussianDiffusion, extract, unnormalize_to_zero_to_one
+from denoising_diffusion_pytorch.ddpt import GaussianDiffusion, extract, unnormalize_to_zero_to_one
 
 # constants
 
