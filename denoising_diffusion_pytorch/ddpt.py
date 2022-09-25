@@ -23,6 +23,8 @@ from ema_pytorch import EMA
 
 from accelerate import Accelerator
 
+from denoising_diffusion_pytorch.utils import l2_loss_with_norm_penalty
+
 # constants
 
 ModelPrediction =  namedtuple('ModelPrediction', ['pred_noise', 'pred_x_start'])
@@ -654,7 +656,7 @@ class GaussianDiffusion(nn.Module):
         if self.loss_type == 'l1':
             return partial(F.l1_loss, reduction = 'none')
         elif self.loss_type == 'l2':
-            return partial(F.mse_loss, reduction = 'none')
+            return l2_loss_with_norm_penalty
         elif self.loss_type == 'cos':
             return F.cosine_similarity
         else:
