@@ -2,7 +2,7 @@ from denoising_diffusion_pytorch.pl_train import SeqDiffusion
 import torch
 
 BS = 100
-ckpt_path = '/user/pengzhangzhi/personal/diffusion/denoising-diffusion-pytorch/denoising_diffusion_pytorch/experiment/best-v1.ckpt'
+ckpt_path = './experiment/best-v1.ckpt'
 
 model = SeqDiffusion.load_from_checkpoint(
     ckpt_path,
