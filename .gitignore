@@ -1,3 +1,10 @@
+# vscode 
+.vscode/
+# data
+denoising_diffusion_pytorch/seq_data/fas/*.fasta
+# training logs 
+lightning_logs/*
+experiment
 # Generation results
 results/
 
