@@ -1,20 +1,24 @@
 from setuptools import setup, find_packages
 
 setup(
-  name = 'denoising-diffusion-pytorch',
+  name = 'protein-sequence-generation-with-denoising-diffusion',
   packages = find_packages(),
-  version = '0.27.10',
+  version = '0.1.0',
   license='MIT',
-  description = 'Denoising Diffusion Probabilistic Models - Pytorch',
-  author = 'Phil Wang',
-  author_email = 'lucidrains@gmail.com',
-  url = 'https://github.com/lucidrains/denoising-diffusion-pytorch',
+  description = 'Denoising Diffusion Probabilistic Models for Protein Sequence Generation - Pytorch',
+  author = 'Zhangzhi Peng',
+  author_email = 'pengzhangzhics@gmail.com',
+  url = 'https://github.com/pengzhangzhi',
   long_description_content_type = 'text/markdown',
   keywords = [
     'artificial intelligence',
-    'generative models'
+    'generative models',
+    "protein sequence",
   ],
   install_requires=[
+    'biopython',
+    'pytorch-lightning',
+    # 'fair-esm',
     'accelerate',
     'einops',
     'ema-pytorch',
