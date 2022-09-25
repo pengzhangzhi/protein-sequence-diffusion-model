@@ -1,5 +1,5 @@
 import unittest
-from denoising_diffusion_pytorch.dd_seq import SeqDiffusion,cos_sim
+from denoising_diffusion_pytorch.pl_train import SeqDiffusion,cos_sim
 from denoising_diffusion_pytorch import utils
 import torch, torch.nn as nn 
 class TestSeqDiffusion(unittest.TestCase):
