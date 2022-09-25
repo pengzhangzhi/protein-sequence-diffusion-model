@@ -4,7 +4,7 @@
 denoising_diffusion_pytorch/seq_data/fas/*.fasta
 # training logs 
 lightning_logs/*
-experiment
+# experiment
 # Generation results
 results/
 
