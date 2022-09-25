@@ -1,103 +1,60 @@
-<img src="./images/denoising-diffusion.png" width="500px"></img>
+<!-- <img src="./images/denoising-diffusion.png" width="500px"></img> -->
 
-## Denoising Diffusion Probabilistic Model, in Pytorch
+## Denoising Diffusion Probabilistic Model For Protein Sequence Generation
 
-Implementation of <a href="https://arxiv.org/abs/2006.11239">Denoising Diffusion Probabilistic Model</a> in Pytorch. It is a new approach to generative modeling that may <a href="https://ajolicoeur.wordpress.com/the-new-contender-to-gans-score-matching-with-langevin-sampling/">have the potential</a> to rival GANs. It uses denoising score matching to estimate the gradient of the data distribution, followed by Langevin sampling to sample from the true distribution.
+Implementation of a proof of concept (POC) that leverages <a href="https://arxiv.org/abs/2006.11239">Denoising Diffusion Probabilistic Model</a> to generate protein sequences. Code is implemented in pytorch.
 
-This implementation was transcribed from the official Tensorflow version <a href="https://github.com/hojonathanho/diffusion">here</a>
 
-Youtube AI Educators - <a href="https://www.youtube.com/watch?v=W-O7AZNzbzQ">Yannic Kilcher</a> | <a href="https://www.youtube.com/watch?v=344w5h24-h8">AI Coffeebreak with Letitia</a> | <a href="https://www.youtube.com/watch?v=HoKDTa5jHvg">Outlier</a>
+This implementation of DDPM was transcribed from lucidrains <a href="https://github.com/lucidrains/denoising-diffusion-pytorch">here</a>
+I replace the UNet with a pre-trained protein language model ESM-2 for the denoising part.
 
-<a href="https://huggingface.co/blog/annotated-diffusion">Annotated code</a> by Research Scientists / Engineers from <a href="https://huggingface.co/">🤗 Huggingface</a>
-
-Update: Turns out none of the technicalities really matters at all | <a href="https://arxiv.org/abs/2208.09392">"Cold Diffusion" paper</a>
-
-<img src="./images/sample.png" width="500px"><img>
-
-[![PyPI version](https://badge.fury.io/py/denoising-diffusion-pytorch.svg)](https://badge.fury.io/py/denoising-diffusion-pytorch)
+<img src="./images/sample.jpg" width="500px"><img>
 
 ## Install
 
 ```bash
-$ pip install denoising_diffusion_pytorch
+$ git clone https://github.com/pengzhangzhi/denoising-diffusion-protein-sequence
+```
+```bash
+cd denoising_diffusion_protein_sequence
+```
+Install this package
+```bash
+pip install .
+```
+Install [esm](https://github.com/facebookresearch/esm)
+```bash
+cd esm
 ```
 
-## Usage
-
-```python
-import torch
-from denoising_diffusion_pytorch import Unet, GaussianDiffusion
-
-model = Unet(
-    dim = 64,
-    dim_mults = (1, 2, 4, 8)
-)
-
-diffusion = GaussianDiffusion(
-    model,
-    image_size = 128,
-    timesteps = 1000,   # number of steps
-    loss_type = 'l1'    # L1 or L2
-)
-
-training_images = torch.randn(8, 3, 128, 128) # images are normalized from 0 to 1
-loss = diffusion(training_images)
-loss.backward()
-# after a lot of training
-
-sampled_images = diffusion.sample(batch_size = 4)
-sampled_images.shape # (4, 3, 128, 128)
+```bash
+pip install .
 ```
 
-Or, if you simply want to pass in a folder name and the desired image dimensions, you can use the `Trainer` class to easily train a model.
+## Sampling Protein Sequences
 
-```python
-from denoising_diffusion_pytorch import Unet, GaussianDiffusion, Trainer
+```bash
+cd denoising_diffusion_pytorch
+```
+Use pretrained model in `denoising_diffusion_pytorch/experiment/best-v1.ckpt`  to sample novel protein sequences.
 
-model = Unet(
-    dim = 64,
-    dim_mults = (1, 2, 4, 8)
-).cuda()
+```
+python sample.py
+```
+Results will be saved in `denoising_diffusion_pytorch/generated_protein_seqs.fasta`.
 
-diffusion = GaussianDiffusion(
-    model,
-    image_size = 128,
-    timesteps = 1000,           # number of steps
-    sampling_timesteps = 250,   # number of sampling timesteps (using ddim for faster inference [see citation for ddim paper])
-    loss_type = 'l1'            # L1 or L2
-).cuda()
 
-trainer = Trainer(
-    diffusion,
-    'path/to/your/images',
-    train_batch_size = 32,
-    train_lr = 8e-5,
-    train_num_steps = 700000,         # total training steps
-    gradient_accumulate_every = 2,    # gradient accumulation steps
-    ema_decay = 0.995,                # exponential moving average decay
-    amp = True                        # turn on mixed precision
-)
+## Training
 
-trainer.train()
+I use pytorch-lighning to train the denosing diffusion model. Command line arguments can be passed to manipulate the training, details see `denoising_diffusion_pytorch/add_args.py`.
+```bash
+cd denoising_diffusion_pytorch
 ```
 
-Samples and model checkpoints will be logged to `./results` periodically
-
-## Multi-GPU Training
-
-The `Trainer` class is now equipped with <a href="https://huggingface.co/docs/accelerate/accelerator">🤗 Accelerator</a>. You can easily do multi-gpu training in two steps using their `accelerate` CLI
-
-At the project root directory, where the training script is, run
-
-```python
-$ accelerate config
+```bash
+python pl_train.py 
 ```
 
-Then, in the same directory
-
-```python
-$ accelerate launch train.py
-```
 
 ## Citations
 
