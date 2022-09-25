@@ -22,7 +22,7 @@ Install this package
 ```bash
 pip install .
 ```
-Install [esm](https://github.com/facebookresearch/esm)
+Install esm to get the language model. The esm is hacked for this project. The original esm see [here](https://github.com/facebookresearch/esm).
 ```bash
 cd esm
 ```
