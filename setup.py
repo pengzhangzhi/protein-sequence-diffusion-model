@@ -8,7 +8,7 @@ setup(
   description = 'Denoising Diffusion Probabilistic Models for Protein Sequence Generation - Pytorch',
   author = 'Zhangzhi Peng',
   author_email = 'pengzhangzhics@gmail.com',
-  url = 'https://github.com/pengzhangzhi',
+  url = 'https://github.com/pengzhangzhi/denoising-diffusion-protein-sequence',
   long_description_content_type = 'text/markdown',
   keywords = [
     'artificial intelligence',
@@ -18,7 +18,6 @@ setup(
   install_requires=[
     'biopython',
     'pytorch-lightning',
-    # 'fair-esm',
     'accelerate',
     'einops',
     'ema-pytorch',
