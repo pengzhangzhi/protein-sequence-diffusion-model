@@ -16,6 +16,7 @@ setup(
     "protein sequence",
   ],
   install_requires=[
+    'h5py',
     'biopython',
     'pytorch-lightning',
     'accelerate',
