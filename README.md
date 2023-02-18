@@ -13,7 +13,7 @@ I replace the UNet with a pre-trained protein language model ESM-2 for the denoi
 ## Install
 
 ```bash
-$ git clone https://github.com/pengzhangzhi/denoising-diffusion-protein-sequence
+$ git clone https://github.com/pengzhangzhi/protein-sequence-diffusion-model
 ```
 ```bash
 cd denoising_diffusion_protein_sequence
